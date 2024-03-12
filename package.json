@@ -1,0 +1,23 @@
+{
+  "name": "moneyhub-api-usage",
+  "version": "1.0.0",
+  "description": "",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/riya-gandhi/moneyhub-api-usage.git"
+  },
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/riya-gandhi/moneyhub-api-usage/issues"
+  },
+  "homepage": "https://github.com/riya-gandhi/moneyhub-api-usage#readme",
+  "dependencies": {
+    "@mft/moneyhub-api-client": "^5.91.2",
+    "express": "^4.18.3"
+  }
+}
