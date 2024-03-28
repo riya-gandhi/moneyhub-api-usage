@@ -14,8 +14,6 @@ Authorisation Flow
 ![image](https://github.com/riya-gandhi/moneyhub-api-usage/assets/63222339/94e9af3b-cddb-45a4-b3d5-cf58a5a3dad5)
 ![image](https://github.com/riya-gandhi/moneyhub-api-usage/assets/63222339/21070ca0-a875-4b2a-907b-49e02ade72a2)
 
-Get Account Details: /accounts
-
 
 
 
