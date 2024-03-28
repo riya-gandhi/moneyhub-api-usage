@@ -17,6 +17,7 @@ async function initiateAuthorization(req, res) {
     nonce: "bar",
     userId: user.userId,
     bankId: "test",
+    sub: user.userId,
   });
 
   console.log(`Redirecting to Authorisation Url- ${url}`);
@@ -48,45 +49,8 @@ function exchangeAuthorizationCodeForTokens(code, state, id_token) {
   });
 }
 
-// Step 3: Fetch Client Data using Access Token
-function fetchClientData(accessToken) {
-  return new Promise((resolve, reject) => {
-    const options = {
-      hostname: "api.moneyhub.co.uk",
-      path: "/v2.0/accounts",
-      method: "GET",
-      headers: {
-        Authorization: `Bearer ${accessToken.access_token}`,
-      },
-    };
-
-    const req = https.request(options, (res) => {
-      let data = "";
-
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-
-      res.on("end", () => {
-        try {
-          const clientData = JSON.parse(data);
-          resolve(clientData);
-        } catch (error) {
-          reject(error);
-        }
-      });
-    });
-
-    req.on("error", (error) => {
-      reject(error);
-    });
-
-    req.end();
-  });
-}
-
 // Route to initiate OAuth 2.0 Authorization Flow
-app.get("/", initiateAuthorization);
+app.get("/auth", initiateAuthorization);
 
 // Route to handle callback from Moneyhub authorization page
 app.get("/auth/callback", async (req, res) => {
@@ -104,9 +68,15 @@ app.get("/auth/callback", async (req, res) => {
       id_token
     );
 
-    // Step 3: Fetch Client Data using Access Token
-    const clientData = await fetchClientData(accessToken);
-    res.status(200).json(clientData);
+    const moneyhub = await Moneyhub(config);
+    const { data: accounts } = await moneyhub.getAccounts(
+      {},
+      { token: accessToken }
+    );
+
+    console.log(`CallBack Code - ${code} Exchanged for Access Tokens`);
+
+    res.status(200).json({ status: "Authorised Successfully", accounts });
   } catch (error) {
     console.error("Error:", error.message);
     res.status(500).json({ error: "Internal Server Error" });
