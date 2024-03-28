@@ -1,99 +1,50 @@
 const express = require("express");
 const app = express();
 const PORT = process.env.PORT || 3000;
-const querystring = require("querystring");
-
-
+const { Moneyhub } = require("@mft/moneyhub-api-client");
+const config = require("./config.js");
+const https = require("https");
 
 // Step 1: Initiate OAuth 2.0 Authorization Flow
-function initiateAuthorization(req, res) {
-  const params = querystring.stringify({
-    client_id: "4a28b179-0075-49aa-b3e4-5333cadca670",
-    scope:
-      "openid id:1ffe704d39629a929c8e293880fb449a accounts:read transactions:read:all",
-    redirect_uri: "https://mw1v1kz7-3000.inc1.devtunnels.ms/auth/callback",
-    state: "your-state-value",
-    response_type: "code",
-    prompt: "consent",
-    request: {
-      header: {
-        alg: "RS256",
-        typ: "JWT",
-      },
-      payload: {
-        aud: "https://identity.moneyhub.co.uk/oidc",
-        iat: 1710241113,
-        exp: 1710242913,
-        iss: "4a28b179-0075-49aa-b3e4-5333cadca670",
-        client_id: "4a28b179-0075-49aa-b3e4-5333cadca670",
-        scope:
-          "openid id:1ffe704d39629a929c8e293880fb449a accounts:read transactions:read:all",
-        state: "your-state-value",
-        redirect_uri: "https://mw1v1kz7-3000.inc1.devtunnels.ms/auth/callback",
-        claims: {
-          id_token: {
-            "mh:con_id": {
-              essential: true,
-            },
-          },
-        },
-        response_type: "code",
-        prompt: "consent",
-      },
-    },
+async function initiateAuthorization(req, res) {
+  const moneyhub = await Moneyhub(config);
+
+  const user = await moneyhub.registerUser({});
+  console.log(`New User Registered-UserId#${user.userId}`);
+
+  const url = await moneyhub.getAuthorizeUrlForCreatedUser({
+    state: "foo",
+    nonce: "bar",
+    userId: user.userId,
+    bankId: "test",
   });
 
-  // Redirect user to Moneyhub authorization page
-  res.redirect(
-    `https://identity.moneyhub.co.uk/oidc/auth?client_id=4a28b179-0075-49aa-b3e4-5333cadca670&prompt=consent&redirect_uri=https%3A%2F%2Fmw1v1kz7-3000.inc1.devtunnels.ms%2Fauth%2Fcallback&request=eyJhbGciOiJub25lIiwidHlwIjoiSldUIn0.eyJhdWQiOiJodHRwczovL2lkZW50aXR5Lm1vbmV5aHViLmNvLnVrL29pZGMiLCJpYXQiOjE3MTAyNDA4NzksImV4cCI6MTcxMDI0MjY3OSwiaXNzIjoiNGEyOGIxNzktMDA3NS00OWFhLWIzZTQtNTMzM2NhZGNhNjcwIiwiY2xpZW50X2lkIjoiNGEyOGIxNzktMDA3NS00OWFhLWIzZTQtNTMzM2NhZGNhNjcwIiwic2NvcGUiOiJvcGVuaWQgaWQ6MWZmZTcwNGQzOTYyOWE5MjljOGUyOTM4ODBmYjQ0OWEgYWNjb3VudHM6cmVhZCB0cmFuc2FjdGlvbnM6cmVhZDphbGwiLCJzdGF0ZSI6InlvdXItc3RhdGUtdmFsdWUiLCJyZWRpcmVjdF91cmkiOiJodHRwczovL213MXYxa3o3LTMwMDAuaW5jMS5kZXZ0dW5uZWxzLm1zL2F1dGgvY2FsbGJhY2siLCJjbGFpbXMiOnsiaWRfdG9rZW4iOnsibWg6Y29uX2lkIjp7ImVzc2VudGlhbCI6dHJ1ZX19fSwicmVzcG9uc2VfdHlwZSI6ImNvZGUiLCJwcm9tcHQiOiJjb25zZW50In0.&response_type=code&scope=openid%20id%3A1ffe704d39629a929c8e293880fb449a%20accounts%3Aread%20transactions%3Aread%3Aall&state=your-state-value`
-  );
+  console.log(`Redirecting to Authorisation Url- ${url}`);
+  res.redirect(url);
 }
 
 // Step 2: Exchange Authorization Code for Access Token
-function exchangeAuthorizationCode(code) {
-  return new Promise((resolve, reject) => {
-    const postData = querystring.stringify({
-      grant_type: "authorization_code",
-      client_id: CLIENT_ID,
-      client_secret: CLIENT_SECRET,
-      redirect_uri: REDIRECT_URI,
-      code,
-    });
+function exchangeAuthorizationCodeForTokens(code, state, id_token) {
+  return new Promise(async (resolve, reject) => {
+    const moneyhub = await Moneyhub(config);
 
-    const options = {
-      hostname: "provider.moneyhub.co.uk",
-      path: "/auth/token",
-      method: "POST",
-      headers: {
-        "Content-Type": "application/x-www-form-urlencoded",
-        "Content-Length": postData.length,
+    const tokens = await moneyhub.exchangeCodeForTokens({
+      localParams: {
+        state: state,
+        nonce: "bar",
       },
-    };
-
-    const req = https.request(options, (res) => {
-      let data = "";
-
-      res.on("data", (chunk) => {
-        data += chunk;
-      });
-
-      res.on("end", () => {
-        try {
-          const tokenResponse = JSON.parse(data);
-          const accessToken = tokenResponse.access_token;
-          resolve(accessToken);
-        } catch (error) {
-          reject(error);
-        }
-      });
+      paramsFromCallback: {
+        code: code,
+        state: state,
+        id_token: id_token,
+      },
     });
 
-    req.on("error", (error) => {
-      reject(error);
-    });
-
-    req.write(postData);
-    req.end();
+    if (tokens) {
+      resolve(tokens);
+    } else {
+      reject("Error in exchange code for tokens");
+    }
   });
 }
 
@@ -102,10 +53,10 @@ function fetchClientData(accessToken) {
   return new Promise((resolve, reject) => {
     const options = {
       hostname: "api.moneyhub.co.uk",
-      path: "/clients/me",
+      path: "/v2.0/accounts",
       method: "GET",
       headers: {
-        Authorization: `Bearer ${accessToken}`,
+        Authorization: `Bearer ${accessToken.access_token}`,
       },
     };
 
@@ -135,22 +86,27 @@ function fetchClientData(accessToken) {
 }
 
 // Route to initiate OAuth 2.0 Authorization Flow
-app.get("/auth", initiateAuthorization);
+app.get("/", initiateAuthorization);
 
 // Route to handle callback from Moneyhub authorization page
 app.get("/auth/callback", async (req, res) => {
-  const code = req.query.code;
+  const { code, state, id_token } = req.query;
+
   if (!code) {
     return res.status(400).send("Authorization code not found");
   }
 
   try {
     // Step 2: Exchange Authorization Code for Access Token
-    const accessToken = await exchangeAuthorizationCode(code);
+    const accessToken = await exchangeAuthorizationCodeForTokens(
+      code,
+      state,
+      id_token
+    );
 
     // Step 3: Fetch Client Data using Access Token
     const clientData = await fetchClientData(accessToken);
-    res.json(clientData);
+    res.status(200).json(clientData);
   } catch (error) {
     console.error("Error:", error.message);
     res.status(500).json({ error: "Internal Server Error" });
